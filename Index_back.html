@@ -1,0 +1,603 @@
+<!DOCTYPE html>   <!-- this is html file -->
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chris'Project</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <!-- 引入 D3.js 數據可視化庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/topojson/dist/topojson.min.js"></script>
+    <!-- 引入 TopoJSON 地理數據處理庫 -->
+    <style>
+        <!-- * stands for 全局選擇器，設定所有元素 -->
+        * {
+            margin: 0;
+            padding: 0 px ;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;    <!-- 因為 block 元素會佔滿整行，自動換行；要設定 flex 預設是 flex-direction: row，橫向排列 -->
+            height: 100vh;
+            <!--  vh = viewport height 整個瀏覽器視窗的 100% 高度 但 後其實沒差 -->
+        }
+
+        .left-panel {
+            width: 40%;
+            background-color: white;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+        }
+
+        .right-panel {
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 30px;
+        }
+
+        h2 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 99px;
+        }
+
+        .control-panel {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-weight: 500;
+            font-size: 24px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        select:hover {
+            border-color: #4da6ff;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #2980b9;
+            background-color: white;
+        }
+
+        select:disabled {
+            background-color: #ecf0f1;
+            cursor: not-allowed;
+            color: #95a5a6;
+        }
+
+        .data-display {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .data-display.show {
+            display: block;
+        }
+
+        .data-display h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .district-section {
+            margin-bottom: 20px;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            border-left: 4px solid #3498db;
+        }
+
+        .district-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        table thead {
+            background-color: #3498db;
+            color: white;
+        }
+
+        table th {
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tbody tr:hover {
+            background-color: #eeeeee;
+        }
+
+        .democrat {
+            color: #0066cc;
+            font-weight: 600;
+        }
+
+        .republican {
+            color: #cc0000;
+            font-weight: 600;
+        }
+
+        /* WIN 黨的顏色 */
+        .win {
+            color: #27ae60;
+            font-weight: 600;
+            background-color: rgba(45, 206, 137, 0.15);
+            /* ✅ 加半透明綠色背景 */
+            padding: 2px 4px;
+            /* ✅ 加 padding 讓背景更明顯 */
+            border-radius: 3px;
+            /* ✅ 圓角效果 */
+        }
+
+
+          <!--   地圖互動樣式-->
+
+        svg {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .state {
+            fill: #e8f4f8;
+            stroke: #999;
+            stroke-width: 0.5px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .state:hover {
+            fill: #4da6ff;
+            stroke-width: 1.5px;
+            filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.2));
+        }
+
+        .state.selected {
+            fill: #ff6b6b;
+            stroke-width: 2px;
+        }
+
+        /* 黑色提示框 */
+        #tooltip {
+            position: fixed;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 9999;
+        }
+
+        .message {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .error {
+            background-color: #fadbd8;
+            color: #c0392b;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+            border-left: 4px solid #c0392b;
+        }
+
+        .success {
+            background-color: #d5f4e6;
+            color: #27ae60;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+            border-left: 4px solid #27ae60;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats {
+            background-color: #ecf0f1;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #555;
+            margin-top: 10px;
+        }
+
+        .stats p {
+            margin: 5px 0;
+        }
+
+        .title-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .title-bar h1 {
+            margin-bottom: 10;
+            flex: 1;
+        }
+
+        .state-badge {
+            background-color: #3498db;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="title-bar">
+            <h1>📊 Election Result</h1>
+            <span class="state-badge" id="stateBadge" style="display: none;"></span>
+        </div>
+
+        <div class="control-panel">
+            <div class="form-group">
+                <label for="yearSelect">Choose Year:</label>
+                <select id="yearSelect" disabled>
+                    <option value="">-- Select One State First --</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="message" class="message">
+            👈 Select One State from the Right
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
+        <div class="data-display" id="dataDisplay">
+            <h3 id="displayTitle">Election Result</h3>
+            <div id="tableContainer"></div>
+            <div class="stats" id="statsContainer"></div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <h1>🗺️ House Election Result and Map (2020-2024)</h1>
+        <svg id="map"></svg>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <script>
+        // API 基礎 URL（根據需要修改）
+        //  這樣以後需要API 只要替換變數就好
+        const API_BASE = 'http://127.0.0.1:5000/api';
+
+        // 州名縮寫映射
+        const stateNameMap = {
+            'AL': 'ALABAMA', 'AK': 'ALASKA', 'AZ': 'ARIZONA', 'AR': 'ARKANSAS', 'CA': 'CALIFORNIA',
+            'CO': 'COLORADO', 'CT': 'CONNECTICUT', 'DE': 'DELAWARE', 'FL': 'FLORIDA', 'GA': 'GEORGIA',
+            'HI': 'HAWAII', 'ID': 'IDAHO', 'IL': 'ILLINOIS', 'IN': 'INDIANA', 'IA': 'IOWA',
+            'KS': 'KANSAS', 'KY': 'KENTUCKY', 'LA': 'LOUISIANA', 'ME': 'MAINE', 'MD': 'MARYLAND',
+            'MA': 'MASSACHUSETTS', 'MI': 'MICHIGAN', 'MN': 'MINNESOTA', 'MS': 'MISSISSIPPI',
+            'MO': 'MISSOURI', 'MT': 'MONTANA', 'NE': 'NEBRASKA', 'NV': 'NEVADA', 'NH': 'NEW HAMPSHIRE',
+            'NJ': 'NEW JERSEY', 'NM': 'NEW MEXICO', 'NY': 'NEW YORK', 'NC': 'NORTH CAROLINA',
+            'ND': 'NORTH DAKOTA', 'OH': 'OHIO', 'OK': 'OKLAHOMA', 'OR': 'OREGON', 'PA': 'PENNSYLVANIA',
+            'RI': 'RHODE ISLAND', 'SC': 'SOUTH CAROLINA', 'SD': 'SOUTH DAKOTA', 'TN': 'TENNESSEE',
+            'TX': 'TEXAS', 'UT': 'UTAH', 'VT': 'VERMONT', 'VA': 'VIRGINIA', 'WA': 'WASHINGTON',
+            'WV': 'WEST VIRGINIA', 'WI': 'WISCONSIN', 'WY': 'WYOMING', 'DC': 'DISTRICT OF COLUMBIA'
+        };
+
+        let selectedState = null;
+        let availableYears = [];
+
+        // 地圖配置
+        const width = 1000;
+        const height = 600;
+
+        const svg = d3.select('#map')
+            .attr('width', width)
+            .attr('height', height);
+
+        const projection = d3.geoAlbersUsa()
+            .fitSize([width, height], { type: 'Sphere' });
+
+        const pathGenerator = d3.geoPath()
+            .projection(projection);
+
+  // /////////           初始化年份下拉列表 //////////////
+        function initializeYears() {
+            fetch(`${API_BASE}/years`)
+                .then(response => response.json())
+                .then(data => {
+                    availableYears = data.years;
+                    const select = document.getElementById('yearSelect');
+                    select.innerHTML = '<option value="">-- 選擇年份 --</option>';
+                    availableYears.forEach(year => {
+                        const option = document.createElement('option');
+                        option.value = year;
+                        option.textContent = year + ' 年';
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('獲取年份失敗:', error));
+        }
+
+        // 加載地圖
+        function loadMap() {
+            fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states10m.json')
+                .then(response => response.json())
+                .then(topology => {
+                    const states = topojson.feature(topology, topology.objects.states).features;
+
+                    svg.selectAll('.state')
+                        .data(states)
+                        .enter()
+                        .append('path')
+                        .attr('class', 'state')
+                        .attr('d', pathGenerator)
+                        .on('click', function(event, d) {
+                            // 移除之前的選擇
+                            d3.selectAll('.state').classed('selected', false);
+                            d3.select(this).classed('selected', true);
+
+                            const stateName = d.properties.name;
+                            selectedState = stateName;
+
+                            // 更新 UI
+                            document.getElementById('stateBadge').textContent = stateName;
+                            document.getElementById('stateBadge').style.display = 'inline-block';
+                            document.getElementById('yearSelect').disabled = false;
+                            document.getElementById('yearSelect').value = '';
+                            document.getElementById('dataDisplay').classList.remove('show');
+                            document.getElementById('message').style.display = 'block';
+                            document.getElementById('errorMessage').style.display = 'none';
+
+                            console.log('已選擇州:', stateName);
+                        })
+                        .on('mouseover', function(event, d) {
+                            if (!d3.select(this).classed('selected')) {
+                                d3.select(this).style('fill', '#4da6ff');
+                            }
+                            const tooltip = d3.select('#tooltip');
+                            tooltip
+                                .style('display', 'block')
+                                .style('left', (event.pageX + 10) + 'px')
+                                .style('top', (event.pageY - 10) + 'px')
+                                .text(d.properties.name + ' - 點擊查詢');
+                        })
+                        .on('mousemove', function(event) {
+                            d3.select('#tooltip')
+                                .style('left', (event.pageX + 10) + 'px')
+                                .style('top', (event.pageY - 10) + 'px');
+                        })
+                        .on('mouseout', function() {
+                            if (!d3.select(this).classed('selected')) {
+                                d3.select(this).style('fill', null);
+                            }
+                            d3.select('#tooltip').style('display', 'none');
+                        });
+                })
+                .catch(error => {
+                    console.error('地圖加載失敗:', error);
+                    showError('無法加載地圖數據');
+                });
+        }
+
+        // 年份選擇變化事件
+        document.getElementById('yearSelect').addEventListener('change', function() {
+            const year = this.value;
+            if (!year || !selectedState) {
+                document.getElementById('dataDisplay').classList.remove('show');
+                return;
+            }
+
+            loadElectionData(selectedState, year);
+        });
+
+        // 獲取並顯示選舉數據
+        function loadElectionData(state, year) {
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('dataDisplay').classList.remove('show');
+
+            const url = `${API_BASE}/state-districts?state=${encodeURIComponent(state)}&year=${year}`;
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayData(data.data, state, year);
+                })
+                .catch(error => {
+                    console.error('數據加載失敗:', error);
+                    showError(`無法加載 ${state} 在 ${year} 年的數據`);
+                });
+        }
+
+        // 顯示數據
+        function displayData(data, stateName, year) {
+            const container = document.getElementById('tableContainer');
+            const displayDiv = document.getElementById('dataDisplay');
+            const title = document.getElementById('displayTitle');
+            const statsDiv = document.getElementById('statsContainer');
+
+            title.textContent = `${stateName} - ${year} 年眾議院選舉結果`;
+
+            if (data.length === 0) {
+                container.innerHTML = '<div class="message">此州在該年度暫無數據</div>';
+                displayDiv.classList.add('show');
+                return;
+            }
+
+            // 按 district 分組
+            const grouped = {};
+            data.forEach(row => {
+                const district = row.district;
+                if (!grouped[district]) {
+                    grouped[district] = [];
+                }
+                grouped[district].push(row);
+            });
+
+            let html = '';
+            let totalVotes = 0;
+            let demVotes = 0;
+            let repVotes = 0;
+
+            Object.keys(grouped)
+                .sort((a, b) => {
+                    const aNum = parseInt(a);
+                    const bNum = parseInt(b);
+                    return isNaN(aNum) ? 1 : (isNaN(bNum) ? -1 : (aNum - bNum));
+                })
+                .forEach(district => {
+                    html += `<div class="district-section">
+                        <div class="district-title">
+                            📍 第 ${district === '0' ? '全州' : district} 選區
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>候選人</th>
+                                    <th>政黨</th>
+                                    <th>得票數</th>
+                                    <th>總票數</th>
+                                    <th>得票率</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    grouped[district].forEach(row => {
+                        const partyClass = row.party === 'DEMOCRAT' ? 'democrat' : (row.party === 'REPUBLICAN' ? 'republican' : 'win');
+                        const votes = row.candidatevotes;
+
+                        totalVotes += row.totalvotes;
+                        if (row.party === 'DEMOCRAT') {
+                            demVotes += votes;
+                        } else {
+                            repVotes += votes;
+                        }
+
+                        html += `
+                            <tr>
+                                <td>${row.candidate}</td>
+                                <td><span class="${partyClass}">${row.party}</span></td>
+                                <td>${votes.toLocaleString()}</td>
+                                <td>${row.totalvotes.toLocaleString()}</td>
+                                <td>${row.vote_percentage.toFixed(2)}%</td>
+                            </tr>
+                        `;
+                    });
+
+                    html += `
+                            </tbody>
+                        </table>
+                    </div>
+                    `;
+                });
+
+            container.innerHTML = html;
+
+            // 顯示統計信息
+            statsDiv.innerHTML = `
+                <p><strong>📊 Your Analysis</strong></p>
+                <p>民主黨: <span class="democrat">${demVotes.toLocaleString()}</span> 票</p>
+                <p>共和黨: <span class="republican">${repVotes.toLocaleString()}</span> 票</p>
+                <p>選區數: ${Object.keys(grouped).length}</p>
+            `;
+
+            displayDiv.classList.add('show');
+            console.log(`已顯示 ${data.length} 筆選舉數據`);
+        }
+
+        // 顯示錯誤信息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+        }
+
+        // 初始化應用
+        window.addEventListener('load', function() {
+            console.log('應用初始化...');
+            initializeYears();
+            loadMap();
+        });
+    </script>
+</body>
+</html>
